@@ -1,0 +1,105 @@
+###
+# Import modules used in this script
+###
+import re
+import requests
+import json
+
+###
+# Disable SSL certificate verification warnings due to netbox using local certificates
+###
+
+from requests.packages.urllib3.exceptions import InsecureRequestWarning
+requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+
+###
+# Catalyst IOS sample output
+###
+
+SAMPLE_vlan_output = '''
+SAMPLE#show vlan brief
+
+VLAN Name                             Status    Ports
+---- -------------------------------- --------- -------------------------------
+1    default                          active
+3    TEST                             active
+4    DEVELOPMENT                      active
+5    PRE-PROD                         active
+6    OFFICE                           active
+7    VOIP                             active
+8    DMZ                              active
+9    MANAGEMENT                       active
+1002 fddi-default                     act/unsup
+1003 token-ring-default               act/unsup
+1004 fddinet-default                  act/unsup
+1005 trnet-default                    act/unsup
+SAMPLE#
+'''
+
+###
+# NX-OS sample output
+###
+
+SAMPLE2_vlan_output = '''
+SAMPLE2# show vlan brief
+
+VLAN Name                             Status    Ports
+---- -------------------------------- --------- -------------------------------
+1    default                          active    Eth1/16, Eth1/17, Eth1/18
+2    TEST                             active    Eth1/16, Eth1/17, Eth1/18
+3    DEVELOPMENT                      active    Eth1/16, Eth1/17, Eth1/18
+4    OFFICE                           active    Eth1/16, Eth1/17, Eth1/18
+5    NEW-OFFICE                       active    Eth1/16, Eth1/17, Eth1/18
+6    VOIP                             active    Eth1/16, Eth1/17, Eth1/18
+7    MANAGEMENT                       active    Eth1/16, Eth1/17, Eth1/18
+
+SAMPLE2#
+
+'''
+
+
+###
+# Define common variables for post to json api
+###
+
+url = "https://<hostname>/api/ipam/vlans/"
+headers = {'Content-Type': 'application/json', 'Accept': 'application/json', 'Authorization': 'Token <netbox-api-key>'}
+
+
+###
+# Define Variables in format ['vlan_group_name,site_id,vlan_group_no']
+###
+
+VLAN_GROUPS = ['SAMPLE,1,1', 'SAMPLE2,2,2']
+
+###
+# Parse through VLAN_GROUPS variable list, gather vlan data from variables above and create vlans using post method to Netbox API
+###
+
+for entry in VLAN_GROUPS:
+    variables = entry.split(',')
+
+    ###
+    # Define vlan_data based on variables[0]_vlan_output, to avoid defining the vlan_data variable using another variable
+    ###
+
+    if (variables[0] == 'SAMPLE'):
+        vlan_data = SAMPLE_vlan_output.splitlines()
+    elif (variables[0] == 'SAMPLE2'):
+        vlan_data = SAMPLE2_vlan_output.splitlines()
+
+    print('\n#######################\n\nUpdating VLAN Group %s\n\n#######################\n' % variables[0])
+
+    ###
+    # Parse through each entry in vlan data and upload to Netbox API using post method
+    ###
+
+    for line in vlan_data:
+        if re.search('active', line):
+            details = line.split()
+            print('Initiating API Call to create VLAN %s' % details[0])
+            data = {"vid": details[0] , "name": details[1] , "site": variables[1], "group": variables[2], "role": 1}
+            r = requests.post(url, data=json.dumps(data), headers=headers, verify = False)
+            print('VLAN %s has been created' % details[0])
+        else:
+            pass
